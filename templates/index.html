@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Image Sonifier</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: #0d0d1a; color: #dde0f0;
+      min-height: 100vh; display: flex;
+      align-items: flex-start; justify-content: center;
+      padding: 2.5rem 1rem;
+    }
+    .container {
+      background: #14142b; border-radius: 20px;
+      padding: 2.5rem; max-width: 720px; width: 100%;
+      box-shadow: 0 12px 60px rgba(0,0,0,0.6);
+    }
+    h1 { font-size: 2rem; color: #c4b5fd; margin-bottom: 0.3rem; }
+    .subtitle { color: #777; font-size: 0.9rem; margin-bottom: 2rem; }
+    .drop-zone {
+      border: 2px dashed #3b3b6e; border-radius: 14px;
+      padding: 2rem; text-align: center; cursor: pointer;
+      transition: all 0.2s; margin-bottom: 1.8rem; position: relative;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: #a78bfa; background: rgba(167,139,250,0.05);
+    }
+    .drop-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0;
+      cursor: pointer; width: 100%; height: 100%;
+    }
+    .dz-icon { font-size: 2.8rem; margin-bottom: 0.4rem; }
+    .dz-text { color: #888; font-size: 0.95rem; }
+    .dz-text strong { color: #a78bfa; }
+    #preview-img {
+      max-width: 100%; max-height: 200px; border-radius: 10px;
+      margin-top: 1.2rem; display: none;
+    }
+    .section-title {
+      font-size: 0.78rem; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #6b6b9a;
+      margin: 1.5rem 0 0.7rem;
+      border-bottom: 1px solid #1e1e3a; padding-bottom: 0.4rem;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; }
+    @media (max-width: 520px) { .grid-2, .grid-4 { grid-template-columns: 1fr; } }
+    .field label { display: block; font-size: 0.8rem; color: #9090c0; margin-bottom: 0.35rem; }
+    input[type="text"], input[type="number"], select {
+      width: 100%; background: #0d0d1a; border: 1px solid #2a2a4a;
+      border-radius: 8px; color: #dde0f0;
+      padding: 0.5rem 0.75rem; font-size: 0.92rem; outline: none;
+    }
+    input:focus, select:focus { border-color: #7c6fd0; }
+    .toggle-row { display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0 0.5rem; }
+    .toggle-row label { font-size: 0.9rem; color: #aaa; cursor: pointer; }
+    input[type="checkbox"] { width: 18px; height: 18px; accent-color: #7c3aed; }
+    .slider-row { margin-bottom: 0.8rem; }
+    .slider-row label {
+      font-size: 0.8rem; color: #9090c0;
+      display: flex; justify-content: space-between; margin-bottom: 0.3rem;
+    }
+    input[type="range"] { width: 100%; accent-color: #7c3aed; }
+    .format-group { display: flex; gap: 1rem; margin-top: 0.5rem; }
+    .format-group label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; color: #aaa; }
+    input[type="radio"] { accent-color: #7c3aed; }
+    #submit-btn {
+      width: 100%; margin-top: 2rem; padding: 0.9rem;
+      background: linear-gradient(135deg, #7c3aed, #4338ca);
+      border: none; border-radius: 12px; color: white;
+      font-size: 1.05rem; font-weight: 700; cursor: pointer;
+    }
+    #submit-btn:hover:not(:disabled) { opacity: 0.88; }
+    #submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #status {
+      margin-top: 1.5rem; padding: 1rem 1.2rem;
+      border-radius: 12px; font-size: 0.92rem;
+      display: none; line-height: 1.6;
+    }
+    #status.loading { background: #1a1a38; color: #a78bfa; }
+    #status.success { background: #0a2418; color: #6ee7b7; }
+    #status.error   { background: #2a0f0f; color: #fca5a5; }
+    .download-btn {
+      display: inline-block; margin-top: 0.75rem; margin-right: 0.5rem;
+      padding: 0.55rem 1.3rem; background: #059669; color: white;
+      border-radius: 8px; text-decoration: none; font-weight: 600;
+    }
+    .download-btn.midi-btn { background: #2563eb; }
+    .spinner {
+      display: inline-block; width: 15px; height: 15px;
+      border: 2px solid #a78bfa; border-top-color: transparent;
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+      margin-right: 8px; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Image Sonifier</h1>
+  <p class="subtitle">Upload an image and get back a unique piece of music generated from its colours.</p>
+  <form id="sonify-form" enctype="multipart/form-data">
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="image-input" name="image" accept="image/*" required />
+      <div class="dz-icon">🖼️</div>
+      <p class="dz-text">Drag & drop an image here, or <strong>click to browse</strong></p>
+      <img id="preview-img" alt="Preview" />
+    </div>
+    <div class="section-title">Basic Settings</div>
+    <div class="grid-2">
+      <div class="field">
+        <label>Piece Name</label>
+        <input type="text" name="piece_name" value="My Piece" />
+      </div>
+      <div class="field">
+        <label>Key Signature</label>
+        <select name="key_signature">
+          <option value="C">C Major</option><option value="G">G Major</option>
+          <option value="D">D Major</option><option value="F">F Major</option>
+          <option value="Am" selected>A Minor</option><option value="Em">E Minor</option>
+          <option value="Dm">D Minor</option><option value="Cm">C Minor</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Tempo (BPM)</label>
+        <input type="number" name="tempo" value="70" min="40" max="200" />
+      </div>
+      <div class="field">
+        <label>Style</label>
+        <select name="style">
+          <option value="cinematic" selected>Cinematic</option>
+          <option value="classical">Classical</option>
+        </select>
+      </div>
+    </div>
+    <div class="section-title">Structure</div>
+    <div class="grid-2">
+      <div class="field">
+        <label>Number of Slices (affects length)</label>
+        <input type="number" name="num_slices" value="150" min="20" max="400" />
+      </div>
+      <div class="field">
+        <label>Base Octave (4 = middle C)</label>
+        <input type="number" name="base_octave" value="4" min="2" max="6" />
+      </div>
+    </div>
+    <div class="section-title">Instruments</div>
+    <div class="grid-4">
+      <div class="field">
+        <label>Melody</label>
+        <select name="melody_instrument">
+          <option value="Flute" selected>Flute</option><option value="Oboe">Oboe</option>
+          <option value="Violin">Violin</option><option value="Clarinet">Clarinet</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Counter</label>
+        <select name="counter_instrument">
+          <option value="Oboe" selected>Oboe</option><option value="Flute">Flute</option>
+          <option value="Violin">Violin</option><option value="Viola">Viola</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Harmony</label>
+        <select name="harmony_instrument">
+          <option value="Piano" selected>Piano</option>
+          <option value="Violin">Violin</option><option value="Viola">Viola</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Bass</label>
+        <select name="bass_instrument">
+          <option value="Violoncello" selected>Cello</option>
+          <option value="Bassoon">Bassoon</option><option value="Piano">Piano</option>
+        </select>
+      </div>
+    </div>
+    <div class="section-title">Audio Effects</div>
+    <div class="toggle-row">
+      <input type="checkbox" id="add-effects" checked />
+      <label for="add-effects">Apply Reverb & Chorus</label>
+    </div>
+    <div id="effects-controls">
+      <div class="slider-row">
+        <label>Reverb <span id="reverb-val">0.4</span></label>
+        <input type="range" name="reverb_amount" min="0" max="1" step="0.05" value="0.4"
+               oninput="document.getElementById('reverb-val').textContent=this.value"/>
+      </div>
+      <div class="slider-row">
+        <label>Chorus <span id="chorus-val">0.3</span></label>
+        <input type="range" name="chorus_amount" min="0" max="1" step="0.05" value="0.3"
+               oninput="document.getElementById('chorus-val').textContent=this.value"/>
+      </div>
+    </div>
+    <div class="section-title">Output Format</div>
+    <div class="format-group">
+      <label><input type="radio" name="output_format" value="midi" checked /> MIDI (.mid)</label>
+      <label><input type="radio" name="output_format" value="wav" /> WAV audio (.wav)</label>
+    </div>
+    <p style="font-size:0.78rem;color:#555;margin-top:0.5rem;">
+      MIDI is fast. WAV takes ~30-60 seconds.
+    </p>
+    <button type="submit" id="submit-btn">Generate Music</button>
+  </form>
+  <div id="status"></div>
+</div>
+<script>
+  const effectsCheckbox = document.getElementById("add-effects");
+  const effectsControls = document.getElementById("effects-controls");
+  effectsCheckbox.addEventListener("change", () => {
+    effectsControls.style.opacity = effectsCheckbox.checked ? "1" : "0.3";
+  });
+  const dropZone  = document.getElementById("drop-zone");
+  const fileInput = document.getElementById("image-input");
+  const preview   = document.getElementById("preview-img");
+  dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault(); dropZone.classList.remove("dragover");
+    if (e.dataTransfer.files.length) { fileInput.files = e.dataTransfer.files; showPreview(e.dataTransfer.files[0]); }
+  });
+  fileInput.addEventListener("change", () => showPreview(fileInput.files[0]));
+  function showPreview(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => { preview.src = e.target.result; preview.style.display = "block"; };
+    reader.readAsDataURL(file);
+  }
+  document.getElementById("sonify-form").addEventListener("submit", async function(e) {
+    e.preventDefault();
+    const btn = document.getElementById("submit-btn");
+    const status = document.getElementById("status");
+    const isWav = document.querySelector('input[name="output_format"]:checked').value === "wav";
+    btn.disabled = true;
+    status.style.display = "block";
+    status.className = "loading";
+    status.innerHTML = `<span class="spinner"></span> ${isWav ? "Rendering audio... up to 60 seconds." : "Composing MIDI... under 30 seconds."}`;
+    const formData = new FormData(this);
+    formData.set("add_effects", effectsCheckbox.checked ? "true" : "false");
+    try {
+      const res  = await fetch("/generate", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.error) {
+        status.className = "error";
+        status.innerHTML = "Error: " + data.error;
+      } else {
+        let links = "";
+        if (data.midi_file) links += `<a class="download-btn midi-btn" href="/download/${data.midi_file}" download>Download MIDI</a>`;
+        if (data.wav_file)  links += `<a class="download-btn" href="/download/${data.wav_file}" download>Download WAV</a>`;
+        status.className = "success";
+        status.innerHTML = `Done! Cadence: <strong>${data.cadence}</strong><br/>${links}`;
+      }
+    } catch(err) {
+      status.className = "error";
+      status.innerHTML = "Network error.";
+    }
+    btn.disabled = false;
+  });
+</script>
+</body>
+</html>
