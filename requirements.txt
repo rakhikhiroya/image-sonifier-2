@@ -1,0 +1,9 @@
+flask
+music21
+pretty_midi
+soundfile
+pedalboard
+pillow
+numpy
+opencv-python-headless
+gunicorn
